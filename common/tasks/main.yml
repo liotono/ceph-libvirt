@@ -1,0 +1,13 @@
+---
+# tasks file for common
+
+- name: Update host
+  apt:
+     upgrade: dist
+     update_cache: yes
+
+- name: Rebooting nodes and waiting for them to come back
+  reboot:
+     msg: "Reboot initiated by Ansible"
+     connect_timeout: 5
+     post_reboot_delay: 30

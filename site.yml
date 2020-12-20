@@ -1,0 +1,6 @@
+
+- name: Perform specific tasks on hosts
+  hosts: all
+  become: yes
+  roles:
+  - common
