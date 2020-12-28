@@ -4,3 +4,11 @@
   become: yes
   roles:
   - common
+
+- name: Bootstrapping the ceph monitors
+  become: yes
+  hosts: ceph_mons
+  roles:
+  - monitor-bootstrap
+  vars:
+     ceph_deployment_node: ceph-1

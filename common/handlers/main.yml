@@ -1,2 +1,8 @@
 ---
 # handlers file for common
+
+- name: reboot nodes
+  reboot:
+     msg: "Reboot initiated by Ansible"
+     connect_timeout: 5
+     post_reboot_delay: 30

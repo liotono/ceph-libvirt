@@ -25,6 +25,7 @@ Vagrant.configure("2") do |config|
 	  config.vm.define "ceph-#{i}" do |box|
 	    box.vm.hostname = "ceph-#{i}"
 	    box.vm.network :private_network, ip: "192.168.5.#{IPSTART + i}", :netmask => "255.255.255.0"
+	    # box.vm.network :private_network, ip: "192.168.6.#{IPSTART + i}", :netmask => "255.255.255.0"
 	    box.vm.provider :libvirt do |domain|
 	      domain.memory = 2048
 	      domain.cpus = 1

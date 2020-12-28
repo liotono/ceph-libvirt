@@ -5,9 +5,14 @@
   apt:
      upgrade: dist
      update_cache: yes
+  notify:
+  - reboot nodes
 
-- name: Rebooting nodes and waiting for them to come back
-  reboot:
-     msg: "Reboot initiated by Ansible"
-     connect_timeout: 5
-     post_reboot_delay: 30
+- name: Installing required packages
+  apt:
+     pkg:
+     - ceph-common
+     - ceph
+     - sshpass
+     state: latest
+     update_cache: yes
