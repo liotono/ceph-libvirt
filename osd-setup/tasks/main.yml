@@ -1,0 +1,33 @@
+---
+# tasks file for prepare-osd
+
+- name: Copying the admin keyring and ceph.keyring to OSD nodes
+  synchronize:
+     src: "{{ item }}"
+     dest: "{{ item }}"
+     rsync_opts:
+     - "--ignore-existing"
+  with_items:
+  - /etc/ceph/ceph.client.admin.keyring
+  - /var/lib/ceph/bootstrap-osd/ceph.keyring
+  - /etc/ceph/ceph.conf
+  delegate_to: "{{ ceph_deployment_node }}"
+
+- name: Fixing permissions in directory /var/lib/ceph/mon/ceph-{{ inventory_hostname }}
+  file:
+     owner: ceph
+     group: ceph
+     path: "/var/lib/ceph/mon/ceph-{{ inventory_hostname }}"
+     recurse: yes
+
+- name: Creating partitions in the OSD devices
+  parted:
+     device: "{{ item[0] }}"
+     number: "{{ item[1].num }}"
+     part_start: "{{ item[1].start }}"
+     part_end: "{{ item[1].end }}"
+     state: present
+  with_nested:
+     - "{{ osd_devices }}"
+     - "{{ partition_layout }}"
+  ignore_errors: yes

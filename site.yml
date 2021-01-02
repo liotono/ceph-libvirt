@@ -4,6 +4,9 @@
   become: yes
   roles:
   - common
+  tags:
+  - node_setup
+  - configure_bluestore_nodes
 
 - name: Bootstrapping the ceph monitors
   become: yes
@@ -11,4 +14,65 @@
   roles:
   - monitor-bootstrap
   vars:
+     ceph_deployment_node: ceph-1
+
+- name: Configuring OSD nodes for bluestore backend
+  become: yes
+  hosts: ceph_osds_bluestore
+  roles:
+  - osd-setup
+  vars:
+     osd_devices:
+     - /dev/vdb
+     - /dev/vdc
+     - /dev/vdd
+     - /dev/vde
+     partition_layout:
+     - { num: 1, start: "0%", end: "2%" }
+     ceph_deployment_node: ceph-1
+  tags:
+  - configure_bluestore_nodes
+
+- name: Setting up OSD nodes with bluestore backend
+  become: yes
+  hosts: ceph_osds_bluestore
+  roles:
+  - osd-bluestore-setup
+  vars:
+     osd_devices:
+     - { data: "/dev/vdb1" }
+     - { data: "/dev/vdc1" }
+     - { data: "/dev/vdd1" }
+     - { data: "/dev/vde1" }
+     ceph_deployment_node: ceph-1
+
+- name: Configuring OSD nodes for filestore backend
+  become: yes
+  hosts: ceph_osds_filestore
+  roles:
+  - osd-setup
+  vars:
+     osd_devices:
+     - /dev/vdb
+     - /dev/vdc
+     - /dev/vdd
+     - /dev/vde
+     partition_layout:
+     - { num: 1, start: "0%", end: "2%" }
+     - { num: 2, start: "2%", end: "100%" }
+     ceph_deployment_node: ceph-1
+  tags:
+  - configure_filestore_nodes
+
+- name: Configuring OSD nodes
+  become: yes
+  hosts: ceph_osds_filestore
+  roles:
+  - osd-filestore-setup
+  vars:
+     osd_devices:
+     - { data: "/dev/vdb1", journal: "/dev/vdb2" }
+     - { data: "/dev/vdc1", journal: "/dev/vdc2" }
+     - { data: "/dev/vdd1", journal: "/dev/vdd2" }
+     - { data: "/dev/vde1", journal: "/dev/vde2" }
      ceph_deployment_node: ceph-1

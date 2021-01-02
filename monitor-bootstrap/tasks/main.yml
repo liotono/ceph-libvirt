@@ -9,6 +9,7 @@
   - /etc/ceph
   - /var/lib/ceph/bootstrap-osd
   - "/var/lib/ceph/mon/ceph-{{ inventory_hostname }}"
+  - "/var/lib/ceph/mgr/ceph-{{ inventory_hostname }}"
 
 - name: Setting some facts to be used when bootstrapping ceph
   set_fact:
@@ -19,40 +20,61 @@
   template:
      src: ceph.conf.j2
      dest: /etc/ceph/ceph.conf
+     backup: yes
 
-- name: Create a keyring for the cluster and generate a monitor secret key
-  shell:
-     cmd: ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
-  delegate_to: "{{ ceph_deployment_node }}"
+- block:
 
-- name: Generate an administrator keyring, generate a client.admin user and add the user to the keyring.
-  shell:
-     cmd: ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *'
-  delegate_to: "{{ ceph_deployment_node }}"
+   - name: Checking if the file /tmp/ceph.mon.keyring exists
+     stat:
+        path: /tmp/ceph.mon.keyring
+     register: mon_keyring
+   
+   - name: Create a keyring for the cluster and generate a monitor secret key
+     shell:
+        cmd: ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
+     when: not mon_keyring.stat.exists
+   
+   - name: Checking if the file /etc/ceph/ceph.client.admin.keyring exists
+     stat:
+        path: /etc/ceph/ceph.client.admin.keyring
+     register: admin_keyring
+   
+   - name: Generate an administrator keyring, generate a client.admin user and add the user to the keyring.
+     shell:
+        cmd: >
+           ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin 
+           --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *'
+     when: not admin_keyring.stat.exists
+   
+   - name: Checking if file /var/lib/ceph/bootstrap-osd/ceph.keyring exists
+     stat:
+        path: /var/lib/ceph/bootstrap-osd/ceph.keyring
+     register: ceph_osd_keyring
+   
+   - name: Generate a bootstrap-osd keyring, generate a client.bootstrap-osd user and add the user to the keyring.
+     shell:
+        cmd: >
+           ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring --gen-key -n client.bootstrap-osd
+           --cap mon 'profile bootstrap-osd' --cap mgr 'allow r'
+     when: not ceph_osd_keyring.stat.exists
+   
+   - name: Add the generated keys to the ceph.mon.keyring
+     shell:
+        cmd: ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
+   
+   - name: Add the generated keys to the ceph.mon.keyring
+     shell:
+        cmd: ceph-authtool /tmp/ceph.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring
+   
+   - name: Copying the ceph keyring files to the ceph nodes
+     synchronize:
+        src: "{{ item }}"
+        dest: "{{ item }}"
+     with_items:
+     - /tmp/ceph.mon.keyring
+     - /var/lib/ceph/bootstrap-osd/ceph.keyring
+     - /etc/ceph/ceph.client.admin.keyring
 
-- name: Generate a bootstrap-osd keyring, generate a client.bootstrap-osd user and add the user to the keyring.
-  shell:
-     cmd: ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd' --cap mgr 'allow r'
-  delegate_to: "{{ ceph_deployment_node }}"
-
-- name: Add the generated keys to the ceph.mon.keyring
-  shell:
-     cmd: ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
-  delegate_to: "{{ ceph_deployment_node }}"
-
-- name: Add the generated keys to the ceph.mon.keyring
-  shell:
-     cmd: ceph-authtool /tmp/ceph.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring
-  delegate_to: "{{ ceph_deployment_node }}"
-
-- name: Copying the ceph keyring files to the ceph nodes
-  synchronize:
-     src: "{{ item }}"
-     dest: "{{ item }}"
-  with_items:
-  - /tmp/ceph.mon.keyring
-  - /var/lib/ceph/bootstrap-osd/ceph.keyring
-    # - /etc/ceph/ceph.client.admin.keyring 
   delegate_to: "{{ ceph_deployment_node }}"
 
 - name: Setting permissions on /tmp/ceph.mon.keyring
@@ -61,9 +83,23 @@
      group: ceph
      path: /tmp/ceph.mon.keyring
 
+- name: Checking if monitor map exists on the monitor ceph nodes
+  stat:
+     path: /tmp/monmap
+  register: monitor_map
+
 - name: Generate a monitor map using the hostname(s), host IP address(es) and the FSID
   shell:
-     cmd: monmaptool --create {% for mon in groups['ceph_mons'] %} --add {{ mon }} {{ hostvars[mon]['ansible_facts']['eth1']['ipv4']['address'] }} {% endfor %} --fsid {{ ceph_fsid }} /tmp/monmap
+     cmd: >
+        monmaptool --create
+        {% for mon in groups['ceph_mons'] %} --add {{ mon }} 
+        {{ hostvars[mon]['ansible_facts']['eth1']['ipv4']['address'] }} 
+        {% endfor %} --fsid {{ ceph_fsid }} /tmp/monmap
+  when: not monitor_map.stat.exists
+
+- name: Checking if /var/lib/ceph/mon/ceph-{{ inventory_hostname }} exists
+  stat:
+     path: "/var/lib/ceph/mon/ceph-{{ inventory_hostname }}"
 
 - name: Populate the monitor daemon(s) with the monitor map and keyring
   shell:
@@ -73,13 +109,29 @@
   file:
      owner: ceph
      group: ceph
-     path: "{{ item }}"
+     path: "/var/lib/ceph/mon/ceph-{{ inventory_hostname }}"
      recurse: yes
-  with_items:
-  - "/var/lib/ceph/mon/ceph-{{ inventory_hostname }}"
-    # - /etc/ceph/
 
 - name: Start the monitor(s).
   systemd:
      state: started
      name: "ceph-mon@{{ inventory_hostname }}"
+     enabled: yes
+
+- name: Creating authentication keys for the ceph-mgr daemons
+  shell:
+     cmd: ceph auth get-or-create mgr.{{ inventory_hostname }} mon 'allow profile mgr' osd 'allow *' mds 'allow *'
+  register: ceph_mgrkey
+
+- name: Placing the ceph-mgr key into the mgr data directory
+  copy:
+     content: "{{ ceph_mgrkey.stdout }}\n"
+     dest: "/var/lib/ceph/mgr/ceph-{{ inventory_hostname }}/keyring"
+     owner: ceph
+     group: ceph
+
+- name: Start the manager daemon(s)
+  systemd:
+     state: started
+     name: "ceph-mgr@{{ inventory_hostname }}"
+     enabled: yes

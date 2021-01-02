@@ -1,12 +1,21 @@
 ---
 # tasks file for common
 
-- name: Update host
-  apt:
-     upgrade: dist
-     update_cache: yes
-  notify:
-  - reboot nodes
+- name: Adding the ceph apt signing key
+  apt_key:
+    url: https://download.ceph.com/keys/release.asc
+    state: present
+
+- name: Determining Ubuntu version
+  shell:
+     cmd: lsb_release -sc
+  register: ubuntu_version
+
+- name: Adding the debian ceph repository
+  apt_repository:
+    repo: deb https://download.ceph.com/debian-{{ ceph_release }} {{ ubuntu_version.stdout }} main
+    state: present
+    filename: ceph
 
 - name: Installing required packages
   apt:
@@ -16,3 +25,10 @@
      - sshpass
      state: latest
      update_cache: yes
+
+- name: Update host
+  apt:
+     upgrade: dist
+     update_cache: yes
+  notify:
+  - reboot nodes

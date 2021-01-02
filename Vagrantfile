@@ -32,6 +32,7 @@ Vagrant.configure("2") do |config|
          domain.storage :file, :size => "#{CEPH_DISK_SIZE}" 
          domain.storage :file, :size => "#{CEPH_DISK_SIZE}" 
          domain.storage :file, :size => "#{CEPH_DISK_SIZE}" 
+         domain.storage :file, :size => "#{CEPH_DISK_SIZE}" 
 	    end
 	  end
 	end

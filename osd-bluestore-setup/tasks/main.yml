@@ -1,0 +1,7 @@
+---
+
+- name: Calling ceph-volume on the OSD devices
+  shell:
+     cmd: ceph-volume lvm create --data {{ item.data }}
+  with_items: "{{ osd_devices }}"
+  ignore_errors: yes
