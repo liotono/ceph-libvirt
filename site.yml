@@ -28,7 +28,7 @@
      - /dev/vdd
      - /dev/vde
      partition_layout:
-     - { num: 1, start: "0%", end: "2%" }
+     - { num: 1, start: "0%", end: "100%" }
      ceph_deployment_node: ceph-1
   tags:
   - configure_bluestore_nodes
@@ -71,8 +71,8 @@
   - osd-filestore-setup
   vars:
      osd_devices:
-     - { data: "/dev/vdb1", journal: "/dev/vdb2" }
-     - { data: "/dev/vdc1", journal: "/dev/vdc2" }
-     - { data: "/dev/vdd1", journal: "/dev/vdd2" }
-     - { data: "/dev/vde1", journal: "/dev/vde2" }
+     - { data: "/dev/vdb2", journal: "/dev/vdb1" }
+     - { data: "/dev/vdc2", journal: "/dev/vdc1" }
+     - { data: "/dev/vdd2", journal: "/dev/vdd1" }
+     - { data: "/dev/vde2", journal: "/dev/vde1" }
      ceph_deployment_node: ceph-1
